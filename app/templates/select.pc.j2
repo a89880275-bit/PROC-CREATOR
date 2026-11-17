@@ -1,0 +1,109 @@
+/* REVIEW REQUIRED: generated {{ template_version }}; not compiled or deployed.
+ * Basis: samples/md_fdrpt_s5.pc (GET/PUT/TPRETURN signatures preserved).
+ * TODO: confirm global.h/oravar/FML definitions and SELECT_ERROR=YES.
+ * GET/PUT macro-internal error handling is not verified without global.h.
+ * NULL output policy: indicator -1 -> zero-filled string before PUT.
+ */
+#include <global.h>
+#include <string.h>
+
+exec sql include oravar;
+
+#define MAXROWCNT {{ max_row_count }}
+
+#if defined(__STDC__)
+{{ service_id }}(TPSVCINFO *msg)
+#else
+{{ service_id }}(msg)
+TPSVCINFO *msg;
+#endif
+{
+    FBFR *transf;
+    char message[MSGLEN];
+{% for v in inputs %}
+    {{ v.declaration }} {{ v.name }};
+{% if v.indicator %}
+    short {{ v.indicator }};
+{% endif %}
+{% endfor %}
+{% for v in outputs %}
+    {{ v.declaration }} {{ v.name }}[MAXROWCNT];
+    short {{ v.indicator }}[MAXROWCNT];
+{% endfor %}
+    int rowcnt=0, rowcnt1=0;
+    int iDaycnt=0, jj=0, ii=0, ix=0, iy=0;
+    int DataCnt=0;
+
+    applog(msg);
+{% for v in inputs %}
+    memset(&{{ v.name }}, 0, sizeof({{ v.name }}));
+{% if v.indicator %}
+    {{ v.indicator }} = 0;
+{% endif %}
+{% endfor %}
+{% for v in outputs %}
+    memset({{ v.name }}, 0, sizeof({{ v.name }}));
+    memset({{ v.indicator }}, 0, sizeof({{ v.indicator }}));
+{% endfor %}
+    transf = (FBFR *)msg->data;
+#ifdef DEBUG
+    Fprint(transf);
+#endif
+
+    /* TODO: GET failure return is delegated to the existing project macro. */
+{% for v in inputs %}
+    GET ({{ v.field }}, 0, {{ v.name }});
+{% endfor %}
+
+    exec sql
+{{ embedded_sql | indent(4, true) }}
+
+    if (SQLCODE!=0 && SQLCODE!=NOTFOUND && SQLCODE!=TOOMANY) {
+        MakeErrMsg(message,SVCNAME,DBSEL,SQLMSG);
+        TPRETURN_ERROR(message,-1);
+    }
+    if (SQLCODE==TOOMANY || SQLCNT>MAXROWCNT) {
+        MakeMsg(message,SF_B220,MAXROWCNT);
+        TPRETURN_ERROR(message,1);
+    }
+    rowcnt = SQLCNT;
+    if (rowcnt<0) {
+        MakeErrMsg(message,SVCNAME,DBSEL,SQLMSG);
+        TPRETURN_ERROR(message,-1);
+    }
+
+    if ((transf=(FBFR *)tprealloc((char *)transf,MAXBUFSIZE))==(FBFR *)NULL) {
+        MakeErrMsg(message,SVCNAME,TUXALLOC,TUXMSG);
+        TPRETURN_ERROR(message,-1);
+    }
+    if (Finit(transf,Fsizeof(transf)) == -1) {
+        MakeErrMsg(message,SVCNAME,TUXINIT,TUXFMSG);
+        TPRETURN_ERROR(message,-1);
+    }
+
+    /* NO DATA: preserve the sample's SF_A220 / success return with 0 rows. */
+    if (rowcnt==0) {
+        MakeMsg(message,SF_A220,0);
+        TPRETURN(message,0);
+    }
+    for (iy=0; iy<rowcnt; iy++) {
+{% for v in outputs %}
+        if ({{ v.indicator }}[iy]>0 || {{ v.indicator }}[iy]==-2) {
+            MakeErrMsg(message,SVCNAME,DBSEL,"Output string truncated");
+            TPRETURN_ERROR(message,-1);
+        }
+        if ({{ v.indicator }}[iy]==-1) {
+            memset(&{{ v.name }}[iy], 0, sizeof({{ v.name }}[iy]));
+        }
+{% endfor %}
+        /* TODO: PUT failure return is delegated to the existing project macro. */
+{% for v in outputs %}
+        PUT ({{ v.field }}, iy, {{ v.name }}[iy]);
+{% endfor %}
+    }
+    MakeMsg(message,SF_A220,rowcnt);
+#ifdef DEBUG
+    printf(" %s : Size[%d] Used[%d]\n",SVCNAME,Fsizeof(transf),Fused(transf));
+#endif
+    TPRETURN(message,0);
+}

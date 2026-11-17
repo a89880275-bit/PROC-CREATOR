@@ -1,0 +1,31 @@
+{
+  "headers": [
+    "global.h",
+    "oravar"
+  ],
+  "macros": {
+    "GET": "GET(field, occurrence, variable)",
+    "PUT": "PUT(field, occurrence, variable)",
+    "TPRETURN_ERROR": "TPRETURN_ERROR(message, code)",
+    "TPRETURN": "TPRETURN(message, code)"
+  },
+  "verification": "TODO: 환경 확인 필요. 운영 컴파일 미검증",
+  "transaction_policies_planned": [
+    "XA 관리",
+    "명시적 COMMIT(레거시)",
+    "사용자 정의"
+  ],
+  "select_template": {
+    "id": "select.sample.md_fdrpt_s5",
+    "version": "1.0.0",
+    "basis": "samples/md_fdrpt_s5.pc",
+    "sample_sha256": "0b20dbf0605bb3c0006f3db509a50b968a2de67e52b1d5b4d09e1797aa14617b",
+    "required_precompiler_option": "SELECT_ERROR=YES",
+    "native_numeric_get_put": "unverified: generation blocked; use asciz strings",
+    "null_indicators": "Oracle-documented short arrays; not present in original sample",
+    "null_output_policy": "empty string; NULL vs empty distinction not preserved",
+    "get_put_failure_contract": "TODO: inspect global.h; not independently validated",
+    "compiled": false
+  },
+  "oracle_host_arrays_reference": "https://docs.oracle.com/en/database/oracle/oracle-database/21/lnpcc/host-arrays.html"
+}
